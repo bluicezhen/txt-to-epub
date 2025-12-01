@@ -1,0 +1,6 @@
+name = "txt-to-epub"
+compatibility_date = "2025-12-01"
+
+# 将 dist 目录作为静态资源部署到 Workers Assets
+assets = { directory = "./dist" }
+
