@@ -4,6 +4,8 @@
 
 A pure frontend TXT-to-EPUB converter built with Vue 3, TypeScript, and Vite. It supports both Simplified Chinese and English text, automatically detects chapters and generates an EPUB with a table of contents. Everything runs in your browser and no file is uploaded, which helps protect user privacy.
 
+Live demo: https://txt2epub.bluice.xyz/
+
 ## Features
 
 - Single Page Application (SPA), can be deployed as static files
@@ -69,4 +71,3 @@ The compiled files are in the `dist/` directory. You can deploy them to any stat
 
 4. **Fallback**  
    - If no `第 x 章` line is found in the entire file, the whole document is treated as a single chapter (with a default title “正文” / “Content”).
-
