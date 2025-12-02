@@ -51,6 +51,17 @@ npm run build
 
 构建输出位于 `dist/` 目录，可部署到任意静态托管服务（如 GitHub Pages、Vercel、Cloudflare Pages 等）。
 
+## 测试
+
+- 测试框架： [Vitest](https://vitest.dev/)
+- 运行全部测试（单元 + 集成，一次性执行）：
+
+```bash
+npm test -- --run
+```
+
+集成测试使用的 TXT 测试文件存放在 `tests/fixtures/` 目录下。
+
 ## 章节识别规则说明
 
 1. **删除行首空格**：对每一行，删除行首的所有空白字符（空格、制表符、全角空格等）。

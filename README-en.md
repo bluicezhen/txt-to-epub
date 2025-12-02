@@ -51,6 +51,17 @@ npm run build
 
 The compiled files are in the `dist/` directory. You can deploy them to any static hosting service (GitHub Pages, Vercel, Cloudflare Pages, etc.).
 
+## Testing
+
+- Test runner: [Vitest](https://vitest.dev/)
+- Run all tests once (unit + integration):
+
+```bash
+npm test -- --run
+```
+
+Fixture TXT files for integration tests are placed under `tests/fixtures/`.
+
 ## Chapter Detection Rules
 
 1. **Strip leading whitespace**  

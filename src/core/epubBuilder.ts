@@ -1,10 +1,44 @@
 import JSZip from "jszip";
-import type { BookMeta, Chapter } from "../types";
+import type { BookMeta, Chapter, Cover } from "../types";
 
 interface ManifestItem {
   id: string;
   href: string;
   title: string;
+}
+
+interface BuildEpubOptions {
+  cover?: Cover | null;
+}
+
+function sanitizeFileName(name: string, fallback: string): string {
+  const cleaned = name.split(/[\\/]/).pop() || fallback;
+  const safe = cleaned.replace(/[^a-zA-Z0-9._-]+/g, "_");
+  return safe || fallback;
+}
+
+function guessExtensionFromMime(mimeType: string): string {
+  const normalized = (mimeType || "").toLowerCase();
+  if (normalized.includes("jpeg") || normalized.includes("jpg")) {
+    return "jpg";
+  }
+  if (normalized.includes("png")) {
+    return "png";
+  }
+  if (normalized.includes("gif")) {
+    return "gif";
+  }
+  if (normalized.includes("webp")) {
+    return "webp";
+  }
+  return "img";
+}
+
+function ensureExtension(fileName: string, mimeType: string): string {
+  if (/\.[a-zA-Z0-9]+$/.test(fileName)) {
+    return fileName;
+  }
+  return `${fileName}.${guessExtensionFromMime(mimeType)}`;
 }
 
 function escapeXml(value: string): string {
@@ -71,6 +105,29 @@ ${paragraphs}
 `;
 }
 
+function buildCoverXhtml(meta: BookMeta, coverHref: string): string {
+  const title = escapeXml(meta.title || "未命名");
+  const label = meta.language === "zh-CN" ? "封面" : "Cover";
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${meta.language}">
+  <head>
+    <meta charset="utf-8" />
+    <title>${title} - ${label}</title>
+  </head>
+  <body style="margin: 0; padding: 0;">
+    <section id="cover" aria-label="${label}">
+      <h1 style="display:none">${title}</h1>
+      <div style="display:flex; align-items:center; justify-content:center; min-height: 100vh; padding: 24px;">
+        <img src="${coverHref}" alt="${title}" style="max-width: 100%; max-height: 100vh; object-fit: contain;" />
+      </div>
+    </section>
+  </body>
+</html>
+`;
+}
+
 function buildNavXhtml(meta: BookMeta, items: ManifestItem[]): string {
   const list = items
     .map(
@@ -98,12 +155,40 @@ ${list}
 `;
 }
 
-function buildContentOpf(meta: BookMeta, items: ManifestItem[], uuid: string): string {
-  const manifestList = items
-    .map((item) => `    <item id="${item.id}" href="${item.href}" media-type="application/xhtml+xml"/>`)
-    .join("\n");
+function buildContentOpf(
+  meta: BookMeta,
+  items: ManifestItem[],
+  uuid: string,
+  extras?: { coverImage?: { href: string; mediaType: string }; coverPageHref?: string },
+): string {
+  const manifestEntries: string[] = [
+    `    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
+  ];
 
-  const spineList = items.map((item) => `    <itemref idref="${item.id}"/>`).join("\n");
+  if (extras?.coverImage) {
+    manifestEntries.push(
+      `    <item id="cover-image" href="${escapeXml(extras.coverImage.href)}" media-type="${escapeXml(extras.coverImage.mediaType || "image/jpeg")}" properties="cover-image"/>`,
+    );
+  }
+
+  if (extras?.coverPageHref) {
+    manifestEntries.push(
+      `    <item id="cover-page" href="${escapeXml(extras.coverPageHref)}" media-type="application/xhtml+xml"/>`,
+    );
+  }
+
+  manifestEntries.push(
+    ...items.map(
+      (item) =>
+        `    <item id="${escapeXml(item.id)}" href="${escapeXml(item.href)}" media-type="application/xhtml+xml"/>`,
+    ),
+  );
+
+  const spineEntries: string[] = [];
+  if (extras?.coverPageHref) {
+    spineEntries.push(`    <itemref idref="cover-page"/>`);
+  }
+  spineEntries.push(...items.map((item) => `    <itemref idref="${escapeXml(item.id)}"/>`));
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="${meta.language}">
@@ -112,13 +197,13 @@ function buildContentOpf(meta: BookMeta, items: ManifestItem[], uuid: string): s
     <dc:title>${escapeXml(meta.title || "未命名")}</dc:title>
     ${meta.author ? `<dc:creator>${escapeXml(meta.author)}</dc:creator>` : ""}
     <dc:language>${meta.language}</dc:language>
+    ${extras?.coverImage ? `<meta name="cover" content="cover-image"/>` : ""}
   </metadata>
   <manifest>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-${manifestList}
+${manifestEntries.join("\n")}
   </manifest>
   <spine>
-${spineList}
+${spineEntries.join("\n")}
   </spine>
 </package>
 `;
@@ -132,7 +217,11 @@ const containerXml = `<?xml version="1.0"?>
 </container>
 `;
 
-export async function buildEpub(meta: BookMeta, chapters: Chapter[]): Promise<Blob> {
+export async function buildEpub(
+  meta: BookMeta,
+  chapters: Chapter[],
+  options: BuildEpubOptions = {},
+): Promise<Blob> {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   zip.folder("META-INF")?.file("container.xml", containerXml);
@@ -148,9 +237,28 @@ export async function buildEpub(meta: BookMeta, chapters: Chapter[]): Promise<Bl
     return { id: `chapter-${idx + 1}`, href, title: chapter.title };
   });
 
+  let coverImageInfo: { href: string; mediaType: string } | undefined;
+  let coverPageHref: string | undefined;
+
+  if (options.cover) {
+    const safeName = sanitizeFileName(options.cover.fileName || "cover", "cover");
+    const coverHref = ensureExtension(safeName, options.cover.mimeType || "image/jpeg");
+    coverImageInfo = { href: coverHref, mediaType: options.cover.mimeType || "image/jpeg" };
+    coverPageHref = "cover.xhtml";
+
+    oebps.file(coverHref, options.cover.data);
+    oebps.file(coverPageHref, buildCoverXhtml(meta, coverHref));
+  }
+
   const uuid = makeUuid();
   oebps.file("nav.xhtml", buildNavXhtml(meta, manifestItems));
-  oebps.file("content.opf", buildContentOpf(meta, manifestItems, uuid));
+  oebps.file(
+    "content.opf",
+    buildContentOpf(meta, manifestItems, uuid, {
+      coverImage: coverImageInfo,
+      coverPageHref,
+    }),
+  );
 
   return zip.generateAsync({ type: "blob", mimeType: "application/epub+zip" });
 }

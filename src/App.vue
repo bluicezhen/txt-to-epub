@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import BookMetaForm from "./components/BookMetaForm.vue";
 import ChapterDetail from "./components/ChapterDetail.vue";
 import ChapterList from "./components/ChapterList.vue";
+import CoverUploadPanel from "./components/CoverUploadPanel.vue";
 import ExportPanel from "./components/ExportPanel.vue";
 import FileUploadPanel from "./components/FileUploadPanel.vue";
 import { mergeWithPrevious, renameChapter } from "./core/chapterOps";
@@ -10,7 +11,7 @@ import { parseChapters } from "./core/chapterParser";
 import { preprocessLines } from "./core/preprocess";
 import { buildEpub } from "./core/epubBuilder";
 import { readTextFile } from "./core/textReader";
-import type { BookMeta, Chapter } from "./types";
+import type { BookMeta, Chapter, Cover } from "./types";
 
 const detectedEncoding = ref("未知");
 const usedEncoding = ref("待解析");
@@ -20,6 +21,8 @@ const statusMessage = ref("");
 const errorMessage = ref("");
 const busy = ref(false);
 const lastFileName = ref("");
+const cover = ref<Cover | null>(null);
+const coverPreviewUrl = ref<string | null>(null);
 
 const bookMeta = reactive<BookMeta>({
   title: "",
@@ -47,6 +50,22 @@ watch(
 
 function updateMeta(meta: BookMeta) {
   Object.assign(bookMeta, meta);
+}
+
+function handleCoverSelect(payload: { cover: Cover; previewUrl: string }) {
+  if (coverPreviewUrl.value) {
+    URL.revokeObjectURL(coverPreviewUrl.value);
+  }
+  cover.value = payload.cover;
+  coverPreviewUrl.value = payload.previewUrl;
+}
+
+function handleCoverClear() {
+  if (coverPreviewUrl.value) {
+    URL.revokeObjectURL(coverPreviewUrl.value);
+  }
+  coverPreviewUrl.value = null;
+  cover.value = null;
 }
 
 async function handleParse(payload: { file: File; encoding: string | "auto" }) {
@@ -101,7 +120,9 @@ async function handleExport() {
       ...bookMeta,
       title: bookMeta.title || lastFileName.value || "未命名",
     };
-    const blob = await buildEpub(meta, chapters.value);
+    const blob = await buildEpub(meta, chapters.value, {
+      cover: cover.value || undefined,
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -115,6 +136,12 @@ async function handleExport() {
     busy.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  if (coverPreviewUrl.value) {
+    URL.revokeObjectURL(coverPreviewUrl.value);
+  }
+});
 </script>
 
 <template>
@@ -158,6 +185,13 @@ async function handleExport() {
       />
       <div class="grid" style="gap: 12px">
         <BookMetaForm :meta="bookMeta" @update:meta="updateMeta" />
+        <CoverUploadPanel
+          :file-name="cover?.fileName || null"
+          :preview-url="coverPreviewUrl"
+          :busy="busy"
+          @select="handleCoverSelect"
+          @clear="handleCoverClear"
+        />
         <ChapterDetail
           :chapter="selectedChapter"
           :can-merge="Boolean(selectedChapter && chapters.indexOf(selectedChapter) > 0)"

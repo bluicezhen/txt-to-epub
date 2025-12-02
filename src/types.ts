@@ -18,3 +18,9 @@ export interface ReadResult {
   detectedEncoding: string;
   usedEncoding: string;
 }
+
+export interface Cover {
+  data: ArrayBuffer;
+  mimeType: string;
+  fileName: string;
+}
