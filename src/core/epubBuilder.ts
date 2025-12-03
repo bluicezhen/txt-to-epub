@@ -58,25 +58,7 @@ function makeUuid(): string {
 }
 
 function linesToParagraphs(lines: string[]): string[] {
-  const paragraphs: string[] = [];
-  let buffer: string[] = [];
-
-  const pushBuffer = () => {
-    if (buffer.length) {
-      paragraphs.push(buffer.join(" "));
-      buffer = [];
-    }
-  };
-
-  lines.forEach((line) => {
-    if (line.trim() === "") {
-      pushBuffer();
-    } else {
-      buffer.push(line.trim());
-    }
-  });
-  pushBuffer();
-
+  const paragraphs = lines.map((line) => line.trim());
   if (!paragraphs.length) {
     paragraphs.push("");
   }
