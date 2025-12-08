@@ -32,4 +32,25 @@ describe("TXT fixtures integration", () => {
     const arrayBuffer = await blob.arrayBuffer();
     expect(arrayBuffer.byteLength).toBeGreaterThan(0);
   });
+
+  it("parses 测试小说_002.txt and builds a non-empty EPUB", async () => {
+    const raw = loadFixture("测试小说_002.txt");
+    const lines = preprocessLines(raw);
+
+    const chapters = parseChapters(lines, "zh-CN");
+    expect(chapters.length).toBeGreaterThan(0);
+
+    const titles = chapters.map((c) => c.title);
+    expect(titles.length).toBeGreaterThan(0);
+
+    const meta: BookMeta = {
+      title: "测试小说 002",
+      author: "测试作者 002",
+      language: "zh-CN",
+    };
+
+    const blob = await buildEpub(meta, chapters);
+    const arrayBuffer = await blob.arrayBuffer();
+    expect(arrayBuffer.byteLength).toBeGreaterThan(0);
+  });
 });

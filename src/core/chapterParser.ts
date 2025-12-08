@@ -1,8 +1,17 @@
 import type { Chapter, Language } from "../types";
 import { hasMeaningfulContent } from "./preprocess";
 
-const chapterPattern =
-  /^第([0-9０-９零一二三四五六七八九十百千万两〇○]+)章(?:[\s·、，,：:.-]*)(.*)$/;
+const chapterPatterns: Array<{ regex: RegExp; capture?: number }> = [
+  {
+    // 中文“第X章”
+    regex: /^第([0-9０-９零一二三四五六七八九十百千万两〇○]+)章(?:[\s·、，,：:.-]*)(.*)$/,
+  },
+  {
+    // 英文/混排格式，例如 “1.Chapter0---1序” / “Chapter 25---2”
+    regex: /^(?:\d+[\s.]*\s*)?(Chapter\s*[0-9０-９]+(?:\s*[-—–]{2,}\s*[0-9０-９]+)?(?:.*))$/i,
+    capture: 1, // 去掉前缀序号，仅保留 Chapter... 部分
+  },
+];
 
 function createId(prefix: string, index: number): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -11,17 +20,23 @@ function createId(prefix: string, index: number): string {
   return `${prefix}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
 }
 
-function isChapterTitle(line: string): boolean {
+function extractChapterTitle(line: string): string | null {
   const trimmed = line.trim();
-  return chapterPattern.test(trimmed);
+  for (const pattern of chapterPatterns) {
+    const matched = trimmed.match(pattern.regex);
+    if (matched) {
+      const title = matched[pattern.capture ?? 0] ?? matched[0];
+      return title.trim();
+    }
+  }
+  return null;
 }
 
 export function parseChapters(lines: string[], language: Language): Chapter[] {
   const indices: Array<{ index: number; title: string }> = [];
   lines.forEach((line, idx) => {
-    if (isChapterTitle(line)) {
-      const matched = line.trim().match(chapterPattern);
-      const title = matched?.[0] ?? line.trim();
+    const title = extractChapterTitle(line);
+    if (title) {
       indices.push({ index: idx, title });
     }
   });
