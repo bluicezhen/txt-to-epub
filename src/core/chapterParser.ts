@@ -4,7 +4,7 @@ import { compileRule, type ChapterRule, type CompiledRule } from "./customRules"
 
 const presetPatterns: CompiledRule[] = [
   {
-    // 中文“第X章”
+    // 中文“第X集”
     regex: /^第([0-9０-９零一二三四五六七八九十百千万两〇○]+)集(?:[\s·、，,：:.-]*)(.*)$/,
   },
   {
