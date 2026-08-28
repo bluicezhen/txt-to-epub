@@ -5,7 +5,7 @@ import { compileRule, type ChapterRule, type CompiledRule } from "./customRules"
 const presetPatterns: CompiledRule[] = [
   {
     // 中文“第X章”
-    regex: /^第([0-9０-９零一二三四五六七八九十百千万两〇○]+)章(?:[\s·、，,：:.-]*)(.*)$/,
+    regex: /^第([0-9０-９零一二三四五六七八九十百千万两〇○]+)集(?:[\s·、，,：:.-]*)(.*)$/,
   },
   {
     // 英文/混排格式，例如 “1.Chapter0---1序” / “Chapter 25---2”
